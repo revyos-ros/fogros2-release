@@ -1,0 +1,1 @@
+This package conforms to the ROS 2 Vulnerability Disclosure Policy in [REP-2006](https://www.ros.org/reps/rep-2006.html).
