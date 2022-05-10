@@ -1,9 +1,9 @@
 Install FogROS 2 and ROS 2 from Scratch
 ---
 
-This is quick start guide for installing FogROS 2 (and ROS 2) and its requisites from scratch (e.g., in a VM).  New contributors to the project can start here.
+This is a quick start guide for installing FogROS 2 (and ROS 2) and its requisites from scratch (e.g., in a VM).  New contributors to the project can start here.
 
-1. Install Ubuntu 20.04 or Ubuntu 22.04
+1. Install Ubuntu 20.04 or Ubuntu 22.04. See [here](https://ubuntu.com/tutorials/install-ubuntu-desktop#1-overview) for a tutorial. 
 
 2. Upgrade
 ```bash
@@ -88,7 +88,7 @@ colcon build --merge-install
 sudo apt install awscli
 ```
 
-14. Configure AWS Basic Settings. To run the next command, you need to have your security credentials, an output format and AWS Region. (https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-quickstart.html)
+14. Configure AWS Basic Settings. To run the next command, you need to have your [security credentials, an output format and AWS Region.](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-quickstart.html)
 
 ```
 aws configure
