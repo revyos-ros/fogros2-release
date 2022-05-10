@@ -12,39 +12,42 @@
 
 import abc
 import json
-from rclpy import logging
 import os
 import random
 import subprocess
 import threading
 
 import boto3
+from botocore.exceptions import ClientError
+from rclpy import logging
 
 from .command_builder import BashBuilder
 from .dds_config_builder import CycloneConfigBuilder
+from .name_generator import get_unique_name
 from .scp import SCP_Client
-from .util import make_zip_file
-from botocore.exceptions import ClientError
-from fogros2.util import instance_dir
+from .util import instance_dir, make_zip_file
+
 
 class CloudInstance(abc.ABC):
     def __init__(
         self,
         ros_workspace=os.path.dirname(os.getenv("COLCON_PREFIX_PATH")),
         working_dir_base=instance_dir(),
-        vis=False,
+        launch_foxglove=False,
     ):
+        assert "RMW_IMPLEMENTATION" in os.environ, "RMW_IMPLEMENTATION environment variable not set"
+        assert "CYCLONEDDS_URI" in os.environ, "CYCLONEDDS_URI environment variable not set"
+            
         # others
         self.logger = logging.get_logger(__name__)
-        #self.logger.setLevel(logging.INFO)
-
         self.cyclone_builder = None
         self.scp = None
         self.public_ip = None
         self.ros_workspace = ros_workspace
+        self.ros_distro = os.getenv("ROS_DISTRO")
         self.logger.info(f"using ROS workspace: {self.ros_workspace}")
         self.ssh_key_path = None
-        self.unique_name = str(random.randint(10, 10000))
+        self.unique_name = get_unique_name()
         self.logger.info(f"New instance name: {self.unique_name}")
         self.working_dir = os.path.join(working_dir_base, self.unique_name)
         os.makedirs(self.working_dir, exist_ok=True)
@@ -52,7 +55,7 @@ class CloudInstance(abc.ABC):
         self.ready_state = False
         self.cloud_service_provider = None
         self.dockers = []
-        self.vis = vis
+        self.launch_foxglove = launch_foxglove
 
     def create(self):
         raise NotImplementedError("Cloud SuperClass not implemented")
@@ -133,16 +136,15 @@ class CloudInstance(abc.ABC):
         self.scp.execute_cmd("sudo update-locale LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8")
         self.scp.execute_cmd("export LANG=en_US.UTF-8")
 
-
         # install ros2 packages
-        self.apt_install("ros-rolling-desktop")
+        self.apt_install(f"ros-{self.ros_distro}-desktop")
 
         # source environment
-        self.scp.execute_cmd("source /opt/ros/rolling/setup.bash")
+        self.scp.execute_cmd(f"source /opt/ros/{self.ros_distro}/setup.bash")
 
     def configure_rosbridge(self):
         # install rosbridge
-        self.apt_install("ros-rolling-rosbridge-suite")
+        self.apt_install(f"ros-{self.ros_distro}-rosbridge-suite")
 
         # source ros and launch rosbridge through ssh
         subprocess.call("chmod 400 " + self.ssh_key_path, shell=True)
@@ -151,9 +153,9 @@ class CloudInstance(abc.ABC):
             + self.ssh_key_path
             + " ubuntu@"
             + self.public_ip
-            + ' "source /opt/ros/rolling/setup.bash && ros2 launch rosbridge_server rosbridge_websocket_launch.xml &"'
+            + f' "source /opt/ros/{self.ros_distro}/setup.bash && ros2 launch rosbridge_server rosbridge_websocket_launch.xml &"'
         )
-        print(rosbridge_launch_script)
+        self.logger.info(rosbridge_launch_script)
         subprocess.Popen(rosbridge_launch_script, shell=True)
 
     def install_colcon(self):
@@ -165,20 +167,17 @@ class CloudInstance(abc.ABC):
             "curl -s https://raw.githubusercontent.com/ros/rosdistro/master/ros.asc | sudo apt-key add -"
         )
 
-        #self.scp.execute_cmd("sudo apt-get update")
-        self.apt_install("python3-colcon-common-extensions")
+        self.pip_install("colcon-common-extensions")
 
     def push_ros_workspace(self):
         # configure ROS env
         workspace_path = self.ros_workspace  # os.getenv("COLCON_PREFIX_PATH")
-        workspace_folder_name = workspace_path.split("/")[-1]
         zip_dst = "/tmp/ros_workspace"
         make_zip_file(workspace_path, zip_dst)
         self.scp.execute_cmd("echo removing old workspace")
         self.scp.execute_cmd("rm -rf ros_workspace.zip ros2_ws fog_ws")
         self.scp.send_file(zip_dst + ".zip", "/home/ubuntu/")
         self.scp.execute_cmd("unzip -q /home/ubuntu/ros_workspace.zip")
-        self.scp.execute_cmd("mv " + workspace_folder_name + " fog_ws")
         self.scp.execute_cmd("echo successfully extracted new workspace")
 
     def push_to_cloud_nodes(self):
@@ -198,23 +197,24 @@ class CloudInstance(abc.ABC):
 
     def launch_cloud_node(self):
         cmd_builder = BashBuilder()
-        cmd_builder.append("source /opt/ros/rolling/setup.bash")
+        cmd_builder.append(f"source /opt/ros/{self.ros_distro}/setup.bash")
         cmd_builder.append("cd /home/ubuntu/fog_ws && colcon build --merge-install --cmake-clean-cache")
         cmd_builder.append(". /home/ubuntu/fog_ws/install/setup.bash")
         cmd_builder.append(self.cyclone_builder.env_cmd)
-        ros_domain_id = os.environ.get('ROS_DOMAIN_ID')
+        ros_domain_id = os.environ.get("ROS_DOMAIN_ID")
         if not ros_domain_id:
             ros_domain_id = 0
         cmd_builder.append(f"ROS_DOMAIN_ID={ros_domain_id} ros2 launch fogros2 cloud.launch.py")
-        print(cmd_builder.get())
+        self.logger.info(cmd_builder.get())
         self.scp.execute_cmd(cmd_builder.get())
 
     def add_docker_container(self, cmd):
         self.dockers.append(cmd)
 
     def launch_cloud_dockers(self):
-        # launch foxglove docker (if vis specified)
-        if self.vis:
+        # launch foxglove docker (if launch_foxglove specified)
+        if self.launch_foxglove:
+            self.configure_rosbridge()
             self.scp.execute_cmd("sudo docker run -d --rm -p '8080:8080' ghcr.io/foxglove/studio:latest")
 
         # launch user specified dockers
@@ -274,7 +274,6 @@ class AWS(CloudInstance):
         self.info(flush_to_disk=True)
         self.connect()
         self.install_ros()
-        self.configure_rosbridge()
         self.install_colcon()
         self.install_cloud_dependencies()
         self.push_ros_workspace()
@@ -298,10 +297,9 @@ class AWS(CloudInstance):
         return self.ssh_key
 
     def get_default_vpc(self):
-        response = self.ec2_boto3_client.describe_vpcs(
-            Filters=[{"Name":"is-default", "Values":["true"]}])
+        response = self.ec2_boto3_client.describe_vpcs(Filters=[{"Name": "is-default", "Values": ["true"]}])
         vpcs = response.get("Vpcs", [])
-        
+
         if len(vpcs) == 0:
             self.logger.warn("No default VPC found.  Creating one.")
             response = self.ec2_boto3_client.create_default_vpc()
@@ -320,13 +318,12 @@ class AWS(CloudInstance):
     def create_security_group(self):
         vpc_id = self.get_default_vpc()
         try:
-            response = self.ec2_boto3_client.describe_security_groups(
-                GroupNames=[self.ec2_security_group])
+            response = self.ec2_boto3_client.describe_security_groups(GroupNames=[self.ec2_security_group])
             security_group_id = response["SecurityGroups"][0]["GroupId"]
         except ClientError as e:
             # check if the group does not exist. we'll create one in
             # that case.  Any other error is unexpected and re-thrown.
-            if e.response['Error']['Code'] != 'InvalidGroup.NotFound':
+            if e.response["Error"]["Code"] != "InvalidGroup.NotFound":
                 raise e
 
             self.logger.warn("security group does not exist, creating.")
@@ -350,7 +347,7 @@ class AWS(CloudInstance):
                 ],
             )
             self.logger.info("Ingress Successfully Set %s" % data)
-            
+
         ec2_security_group_ids = [security_group_id]
         self.logger.info(f"security group id is {ec2_security_group_ids}")
         self.ec2_security_group_ids = ec2_security_group_ids
@@ -358,10 +355,9 @@ class AWS(CloudInstance):
     def generate_key_pair(self):
         ec2_keypair = self.ec2_boto3_client.create_key_pair(KeyName=self.ec2_key_name)
         ec2_priv_key = ec2_keypair["KeyMaterial"]
-        #self.logger.info(ec2_priv_key)
 
         # Since we're writing an SSH key, make sure to write with user-only permissions.
-        with open(os.open(self.ssh_key_path, os.O_CREAT | os.O_WRONLY, 0o600), 'w') as f:
+        with open(os.open(self.ssh_key_path, os.O_CREAT | os.O_WRONLY, 0o600), "w") as f:
             f.write(ec2_priv_key)
 
         self.ssh_key = ec2_priv_key
@@ -379,17 +375,9 @@ class AWS(CloudInstance):
             InstanceType=self.ec2_instance_type,
             KeyName=self.ec2_key_name,
             SecurityGroupIds=self.ec2_security_group_ids,
-            ClientToken="FogROS2-"+self.unique_name,
+            ClientToken="FogROS2-" + self.unique_name,
             TagSpecifications=[
-                {
-                    "ResourceType":"instance",
-                    "Tags": [
-                        {
-                            "Key":"FogROS2-Name",
-                            "Value":self.unique_name
-                        }
-                    ]
-                }
+                {"ResourceType": "instance", "Tags": [{"Key": "FogROS2-Name", "Value": self.unique_name}]}
             ],
             BlockDeviceMappings=[
                 {
