@@ -51,7 +51,7 @@ source /opt/ros/rolling/setup.bash
 export ROS_DOMAIN_ID=99
 echo 'export ROS_DOMAIN_ID=99' >> ~/.bashrc
 ```
-9. Install colcon, git, and h.264 dependencies
+9. Install colcon and git
 
 ```
 sudo apt install python3-colcon-common-extensions
@@ -68,18 +68,16 @@ mkdir -p ~/fog_ws/src
 
 ```
 cd ~/fog_ws/src
-git clone -b humble --recurse-submodules https://github.com/BerkeleyAutomation/FogROS2.git
-# if using Ubuntu 20.04
-cp FogROS2/fogros2/configs/cyclonedds.ubuntu.2004.xml ../cyclonedds.xml
-# if using Ubuntu 22.04
-cp FogROS2/fogros2/configs/cyclonedds.ubuntu.2204.xml ../cyclonedds.xml
+git clone -b humble https://github.com/BerkeleyAutomation/FogROS2.git
+cp FogROS2/fogros2/configs/cyclonedds.ubuntu.$(lsb_release -rs | sed 's/\.//').xml ../cyclonedds.xml
 ```
 
 12. Build
 
 ```
+#If you see a warning like this, you are fine “On Ubuntu 22.04 this may generate deprecation warnings.  These may be ignored.”
 cd ~/fog_ws
-colcon build --merge-install
+colcon build
 ```
 
 13. Install AWS CLI
@@ -97,9 +95,8 @@ aws configure
 15. Install additional dependencies
 
 ```
-sudo apt install build-essential cmake git python3-colcon-common-extensions python3-pip python3-vcstool wget emacs-nox unzip wireguard iproute2 curl net-tools ssh
-sudo apt install emacs-gtk
-pip3 install boto3 paramiko scp wgconfig unique-names-generator
+sudo apt install python3-pip wireguard
+pip install boto3 paramiko scp wgconfig
 ```
 
 16. If using Ubuntu 22.04
@@ -108,18 +105,26 @@ pip3 install boto3 paramiko scp wgconfig unique-names-generator
 sudo apt install ros-rolling-rmw-cyclonedds-cpp
 ```
    
-17. Run basic example
+17. Run basic example. Note that the last command may take some time to complete especially the first time it is run. If your setup is correct, you should see the talker node publishing.
 
 ```
 cd ~/fog_ws
 source install/setup.bash
 export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp 
-# if using Ubuntu 20.04
-export CYCLONEDDS_URI=file://$(pwd)/install/share/fogros2/configs/cyclonedds.ubuntu.2004.xml
-# if using Ubuntu 22.04
-export CYCLONEDDS_URI=file://$(pwd)/install/share/fogros2/configs/cyclonedds.ubuntu.2204.xml
+export CYCLONEDDS_URI=file://$(pwd)/install/fogros2/share/fogros2/configs/cyclonedds.ubuntu.$(lsb_release -rs | sed 's/\.//').xml
 
 ros2 launch fogros2_examples talker.aws.launch.py
 ```
 
-18. You are done. Refer to our [README](https://github.com/BerkeleyAutomation/FogROS2/blob/main/README.md) for additional information including [Command Line Interface commmands](https://github.com/BerkeleyAutomation/FogROS2#command-line-interface) and [Docker installation](https://github.com/BerkeleyAutomation/FogROS2#docker).
+18. You are done. Refer to our [README](https://github.com/BerkeleyAutomation/FogROS2/blob/main/README.md) for additional information including [Command Line Interface commands](https://github.com/BerkeleyAutomation/FogROS2#command-line-interface), which allow you do a lot with your cloud instances from the command line, and [Docker installation](https://github.com/BerkeleyAutomation/FogROS2#docker).
+
+```
+#To see the name of a FogROS2 instance
+ros2 fog list
+
+#To delete a FogROS2 instance
+ros2 fog delete [name]
+
+Typing CTRL-C kills the local instance (e.g., listener) the first time and then the cloud instance the second time
+
+```
