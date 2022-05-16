@@ -2,15 +2,10 @@
 
 [`FogROS2`](https://github.com/BerkeleyAutomation/FogROS2) extends ROS 2 for cloud deployment of computational graphs in a security-conscious manner. It allows researchers to easily and securely deploy ROS abstractions across cloud providers with minimal effort, thus gaining access to additional computing substrates including CPU cores, GPUs, FPGAs, or TPUs, as well as pre-deployed software made available by other researchers. To do so, `FogROS2` extends the ROS 2 launch system, introducing additional syntax to allow roboticists to specify at launch time which components of their architecture will be deployed to the cloud and which components will be deployed on the edge.
 
-If you find this useful, please cite our work:
-
-```
-TODO:introduce citation in here before going public
-```
-
 
 - [FogROS2](#fogros2)
   - [Install](#install)
+    - [Quickstart](#quickstart)
     - [Docker (Recommended)](#docker-recommended)
     - [Natively](#natively)
       - [Install Dependencies](#install-dependencies)
@@ -20,44 +15,39 @@ TODO:introduce citation in here before going public
   - [Run your own robotics applications](#run-your-own-robotics-applications)
   - [Setting Up Automatic Image Transport](#setting-up-automatic-image-transport)
   - [Command Line Interface](#command-line-interface)
-  - [Developer](#developer)
+  - [Some Common Issues](#some-common-issues)
   - [Running Examples:](#running-examples)
-- [NOTE: (mjd3) These should likely be moved to the examples repo](#note-mjd3-these-should-likely-be-moved-to-the-examples-repo)
-      - [To run gqcnn](#to-run-gqcnn)
-      - [To run vslam](#to-run-vslam)
-      - [TODO](#todo)
 
 ## Install
+### Quickstart
+If you are new to ROS and Ubuntu, and want to install FogROS 2 (and ROS 2) and its requisites from scratch, follow instructions [here](https://github.com/BerkeleyAutomation/FogROS2/blob/humble/QUICKSTART.md).
 ### Docker (Recommended)
 Alternatively, you can simplify reproduction using an OS virtualization environment with Docker:
 ```bash
-git clone https://github.com/BerkeleyAutomation/FogROS2
+git clone -b humble https://github.com/BerkeleyAutomation/FogROS2
 cd FogROS2
+
+# Install AWS CLI
+sudo apt install awscli
+
+# Configure AWS Basic Settings. To run the next command, you need to have your security credentials, an output format and AWS Region. See https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-quickstart.html
+aws configure
+
+#Build Docker Image
 docker build -t fogros2 .
 ```
-
-(*Note: the Dockerfile is cooked for x86_64. If you're using a workstation with an Arm-based architecture (e.g. an M1), build the container with the `docker build --platform linux/amd64 -t fogros2 .`*.)
+By default, this command will build a docker image for ROS Rolling and Ubuntu 22.04 (jammy). These defaults can be changed using the `--build-arg` flag (e.g., `docker build -t fogros2:focal-humble . --build-arg UBUNTU_DISTRO=focal --build-arg ROS_DISTRO=humble` will build a ROS Humble image with Ubuntu 20.04 (focal)).
+*Note: the Dockerfile is cooked for x86_64. If you're using a workstation with an Arm-based architecture (e.g. an M1), build the container with the `docker build --platform linux/amd64 -t fogros2 .`*.
 
 ### Natively
-`FogROS2` is actually a ROS meta-package, so you can just fetch it in your favorite workspace, build it, source the workspace as an overlay and start using its capabilities.
+`FogROS2` is actually a ROS meta-package, so you can just fetch it in your workspace, build it, source the workspace as an overlay and start using its capabilities.
 
 #### Install Dependencies
 
 ROS 2 dependencies:
 ```
-sudo apt install -y software-properties-common
-sudo add-apt-repository universe
-sudo apt update && sudo apt install -y curl gnupg lsb-release
-sudo curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key -o /usr/share/keyrings/ros-archive-keyring.gpg
-echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu $(source /etc/os-release && echo $UBUNTU_CODENAME) main" | sudo tee /etc/apt/sources.list.d/ros2.list > /dev/null
-sudo apt update
-sudo apt install -y ros-rolling-desktop
-
-
-sudo sh -c 'echo "deb [arch=amd64,arm64] http://repo.ros2.org/ubuntu/main `lsb_release -cs` main" > /etc/apt/sources.list.d/ros2-latest.list'
-curl -s https://raw.githubusercontent.com/ros/rosdistro/master/ros.asc | sudo apt-key add -
-sudo apt update
-sudo apt install -y python3-colcon-common-extensions
+# If using Ubuntu 22.04
+sudo apt install ros-rolling-rmw-cyclonedds-cpp
 ```
 
 FogROS 2 dependencies:
@@ -65,55 +55,52 @@ FogROS 2 dependencies:
 sudo apt install python3-pip wireguard unzip
 sudo pip3 install wgconfig boto3 paramiko scp
 
-# install AWS CLI
-curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
-unzip awscliv2.zip
-sudo ./aws/install
+# Install AWS CLI
+sudo apt install awscli
+
+# Configure AWS Basic Settings. To run the next command, you need to have your security credentials, an output format and AWS Region. See https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-quickstart.html
+aws configure
 ```
 
 ```bash
-cd <your-ros2-workspace>/src
-git clone https://github.com/BerkeleyAutomation/FogROS2
+source /opt/ros/<your-ros2-distro>/setup.bash
+mkdir -p ~/fog_ws/src
+cd ~/fog_ws/src
+git clone -b humble https://github.com/BerkeleyAutomation/FogROS2
 cd ../
-colcon build --merge-install  # re-build the workspace
+colcon build  # re-build the workspace
 source install/setup.bash
 ```
 
 
 ## Launch ROS 2 computational graphs in the cloud
-TODO: replace this with fogros2 tooling that's cloud-agnostic. E.g. `ros2 fog configure --aws`, instead of `fogros2`.
 
 ### Docker (Recommended)
 
-(*Note: the Dockerfile is cooked for x86_64. If you're using a workstation with an Arm-based architecture (e.g. an M1), run the container with the `docker run -it --platform linux/amd64 --rm --net=host --cap-add=NET_ADMIN fogros2`*.)
-
 ```bash
 # launch fogros2 container
-docker run -it --rm --net=host --cap-add=NET_ADMIN fogros2
-# configure cloud provider CLI wrappers (e.g. AWS)
-aws configure
+docker run -it --rm --net=host -v $HOME/.aws:/root/.aws --cap-add=NET_ADMIN fogros2
 
-source install/setup.bash
-export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
-export CYCLONEDDS_URI=file://$(pwd)/install/share/fogros2/configs/cyclonedds.xml
 # launch talker node on the cloud
-ros2 launch fogros2_examples talker.ubuntu.2204.launch.py
+ros2 launch fogros2_examples talker.aws.launch.py
 ```
 
+(*Note: the Dockerfile is cooked for x86_64. If you're using a workstation with an Arm-based architecture (e.g. an M1), run the container with the `docker run -it --platform linux/amd64 --rm --net=host --cap-add=NET_ADMIN fogros2`*.)
+
 ### Native
+Note: These commands must be run from the root of your ROS workspace.
 ```bash
+source /opt/ros/<your-ros2-distro>/setup.bash
 source install/setup.bash
-export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
-export CYCLONEDDS_URI=file://$(pwd)/install/share/fogros2/configs/cyclonedds.xml
+export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp 
+export CYCLONEDDS_URI=file://$(pwd)/install/fogros2/share/fogros2/configs/cyclonedds.ubuntu.$(lsb_release -rs | sed 's/\.//').xml
 
-# if using Ubuntu 20.04
-ros2 launch fogros2_examples talker.ubuntu.2004.launch.py
-
-# if using Ubuntu 22.04 or container 
-ros2 launch fogros2_examples talker.ubuntu.2204.launch.py
+ros2 launch fogros2_examples talker.aws.launch.py
 ```
 
 ## Run your own robotics applications
+If using, for example, Docker take the following steps: 
+
 Step 1: Mount your robotics application to docker's folder.
 For example,
 ```
@@ -124,10 +111,10 @@ docker run -it --rm \
        ...
     keplerc/ros2:latest /bin/bash
 ```
-you may also `git clone` your development repo to the docker instead.
+You may also `git clone` your development repo to the docker container instead.
 
 
-Step 2: Write the FogROSlaunch file. Examples of launch files can be found in the talker*.launch.py in https://github.com/BerkeleyAutomation/FogROS2/tree/humble/fogros2_examples/launch
+Step 2: Write the FogROS2 launch file. Examples of launch files can be found in the talker*.launch.py [here](https://github.com/BerkeleyAutomation/FogROS2/tree/humble/fogros2_examples/launch).
 
 
 ## Setting Up Automatic Image Transport
@@ -151,83 +138,26 @@ Adding the above argument to a `fogros2.CloudNode` makes the topic `/camera/imag
 Please note that all cloud nodes that are expecting raw images will be remapped to `TOPIC_NAME/cloud` to remove any topic naming conflicts. (TODO: Automate remapping)
 
 ## Command Line Interface
-We currently support the following CLIs for easier debugging and development.
+We currently support the following CLI commands for easier debugging and development.
 
 ```bash
-# list the existing FogROS instances
+# List existing FogROS instances
 ros2 fog list
 
-# SSH to the corresponding instance (e.g. 368)
-# the -n name can be found by the above list command
-ros2 fog connect -n 368
+# Connect via SSH to the corresponding instance (e.g., named "ascent-corona")
+# the instance name can be found by the list command above
+ros2 fog connect ascent-corona
 
-# delete the existing FogROS instance (e.g. 368)
-ros2 fog delete -n 368
+# delete the existing FogROS instance (e.g. named "ascent-corona")
+ros2 fog delete ascent-corona
 # or all of the existing instances
-ros2 fog delete -a
+ros2 fog delete all
 ```
-
-## Developer
-
-Here are some commands that one may find it useful when developing:
-```bash
-
-# starting the second terminal for fogros docker
-docker exec -it $(docker ps | grep fogros2 | awk '{print $1}') /bin/bash
-```
-
-
-## Creating an AMI Image from An Existing Launched FogRos Instance
-
-This can be easily done using our CLI command:
-
-```bash
-# make image from fogros instance
-ros2 fog image -n instance_name
-```
-Alternatively, you can create your AMI image from the AWS website:
-
-See more information [here.](https://docs.aws.amazon.com/toolkit-for-visual-studio/latest/user-guide/tkv-create-ami-from-instance.html)
-
-Step 1: Log into your AWS account and locate your list of instances. 
-
-Step 2: Right-click on the FogROS instance, and choose Create Image from the menu options.
-
-Step 3: In the Create Image dialog box, type a unique name and description, and then choose Create Image. 
-
-Note that Amazon EC2 shuts down the instance by default before creating the AMI and then reboots the instance. Choose the No reboot option if you don't want your instance to be shut down.
-
-## Running Examples:
-# NOTE: (mjd3) These should likely be moved to the examples repo
-
-#### To run gqcnn
-```
-ros2 launch fogros2_examples gqcnn_docker.launch.py
-```
-and run gqcnn's client:
-```
-docker run --net=host --env RMW_IMPLEMENTATION=rmw_cyclonedds_cpp --env CYCLONEDDS_URI=file:///tmp/cyclonedds.xml -v $(pwd)/install/share/fogros2/configs/cyclonedds.xml:/tmp/cyclonedds.xml --rm -it keplerc/gqcnn_ros:pj ros2 launch gqcnn_ros client.launch.py
-```
-in ros workspace.
-
-#### To run vslam
-
-See tutorial walkthrough [here](https://github.com/SimeonOA/orb_slam_2_ros/blob/fogros2/TUTORIAL.md)
-
-Run VSLAM:
-```
-ros2 launch fogros2_examples vslam.launch.py
-```
-and run vslam's client:
-```
-docker run --net=host --env RMW_IMPLEMENTATION=rmw_cyclonedds_cpp --env CYCLONEDDS_URI=file:///tmp/cyclonedds.xml -v $(pwd)/install/share/fogros2/configs/cyclonedds.xml:/tmp/cyclonedds.xml --rm -it -v /home/gdpmobile7/rgbd_dataset_freiburg1_xyz:/dataset -v $(pwd)/output:/output mjd3/orbslam-ros ros2 launch orb_slam2_ros orb_slam2_d435_rgbd_client_launch.py dataset:=/dataset compress:=0
-```
-in ros workspace.
-
-#### TODO
-- Streamline the launch process for client docker images.
 
 ## Some Common Issues
-1. Warning: _2 packages has stderr outputs: fogros2 fogros2_examples_ after running colcon build. This is not an error. See https://github.com/BerkeleyAutomation/FogROS2/issues/45. Your installatiion should still work.  
-2. _[WARN] [1652044293.921367226] [fogros2.scp]: [Errno None] Unable to connect to port 22 on xx.xx.xx.xxx, retrying..._ . You need to wait. This is caused when AWS has not started the instance (yet). 
-3. _WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv_. This is fine. Your setup should still work nontheless
+1. Warning: _2 packages has stderr outputs: fogros2 fogros2_examples_ after running colcon build. This warning occurs in Ubuntu 22.04 (jammy) builds, but does not affect functionality. See https://github.com/BerkeleyAutomation/FogROS2/issues/45. Your installation should still work.  
+2. _[WARN] [1652044293.921367226] [fogros2.scp]: [Errno None] Unable to connect to port 22 on xx.xx.xx.xxx, retrying..._ . This warning occurs when AWS has not yet started the instance. This message should eventually be replaced by _SCP Connected!_ once the instance is started.
+3. _WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behavior with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv_. This warning is often seen when installing packages on the cloud instance, but can be ignored.
+
+## Running Examples:
+We have used FogROS for 3 example use-cases (motion planning, grasp planning, and SLAM map building). Please see our [examples repo](https://github.com/BerkeleyAutomation/fogros2-examples) for these and how to run them.
