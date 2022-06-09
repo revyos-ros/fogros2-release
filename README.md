@@ -22,7 +22,7 @@
 ### Quickstart
 If you are new to ROS and Ubuntu, and want to install FogROS 2 (and ROS 2) and its requisites from scratch, follow instructions [here](https://github.com/BerkeleyAutomation/FogROS2/blob/humble/QUICKSTART.md).
 ### Docker (Recommended)
-Alternatively, you can simplify reproduction using an OS virtualization environment with Docker:
+Alternatively, you can simplify reproduction using an OS virtualization environment with Docker. You can also watch our video tutorial [here](https://www.youtube.com/embed/oEnmZXojkcI?start=1&end=800). 
 ```bash
 git clone -b humble https://github.com/BerkeleyAutomation/FogROS2
 cd FogROS2
@@ -40,7 +40,7 @@ By default, this command will build a docker image for ROS Rolling and Ubuntu 22
 *Note: the Dockerfile is cooked for x86_64. If you're using a workstation with an Arm-based architecture (e.g. an M1), build the container with the `docker build --platform linux/amd64 -t fogros2 .`*.
 
 ### Natively
-`FogROS2` is actually a ROS meta-package, so you can just fetch it in your workspace, build it, source the workspace as an overlay and start using its capabilities.
+`FogROS2` is actually a ROS meta-package, so you can just fetch it in your workspace, build it, source the workspace as an overlay and start using its capabilities. You can also watch our video tutorial [here](https://www.youtube.com/embed/JlV4DhArb8Q?start=1&end=402). 
 
 #### Install Dependencies
 
@@ -76,6 +76,7 @@ source install/setup.bash
 ## Launch ROS 2 computational graphs in the cloud
 
 ### Docker (Recommended)
+You can see this in our video tutorial [here](https://www.youtube.com/embed/oEnmZXojkcI?start=801)
 
 ```bash
 # launch fogros2 container
@@ -88,7 +89,7 @@ ros2 launch fogros2_examples talker.aws.launch.py
 (*Note: the Dockerfile is cooked for x86_64. If you're using a workstation with an Arm-based architecture (e.g. an M1), run the container with the `docker run -it --platform linux/amd64 --rm --net=host --cap-add=NET_ADMIN fogros2`*.)
 
 ### Native
-Note: These commands must be run from the root of your ROS workspace.
+Note: These commands must be run from the root of your ROS workspace. You can see this in our video tutorial [here.](https://www.youtube.com/embed/JlV4DhArb8Q?start=403)
 ```bash
 source /opt/ros/<your-ros2-distro>/setup.bash
 source install/setup.bash
