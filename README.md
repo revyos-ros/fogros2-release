@@ -1,3 +1,28 @@
+## fogros2 (humble) - 0.1.6-2
+
+The packages in the `fogros2` repository were released into the `humble` distro by running `/usr/bin/bloom-release --rosdistro humble --track humble fogros2` on `Thu, 30 Jun 2022 06:09:24 -0000`
+
+These packages were released:
+- `fogros2`
+- `fogros2_examples`
+
+Version of package(s) in repository `fogros2`:
+
+- upstream repository: https://github.com/BerkeleyAutomation/FogROS2.git
+- release repository: https://github.com/ros2-gbp/fogros2-release.git
+- rosdistro version: `0.1.5-1`
+- old version: `0.1.6-1`
+- new version: `0.1.6-2`
+
+Versions of tools used:
+
+- bloom version: `0.11.1`
+- catkin_pkg version: `0.4.24`
+- rosdep version: `0.21.0`
+- rosdistro version: `0.8.3`
+- vcstools version: `0.1.42`
+
+
 ## fogros2 (humble) - 0.1.6-1
 
 The packages in the `fogros2` repository were released into the `humble` distro by running `/usr/bin/bloom-release --rosdistro humble --track humble fogros2` on `Thu, 30 Jun 2022 06:03:09 -0000`
